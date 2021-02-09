@@ -37,8 +37,9 @@ from PyQt5.QtWidgets import QFileDialog
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph import PlotWidget, plot
 from time import time
-from datetime import date
 
+from datetime import date
+from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from yahoo_fin.stock_info import get_data
 from yahoo_fin import stock_info as si
@@ -57,24 +58,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pushButton_1.clicked.connect(self.symbollister)
         self.pushButton_2.clicked.connect(self.pennystocks)
         self.pushButton_3.clicked.connect(self.analysis)
-       # self.pushButton_4.clicked.connect(self.plotter)
+        self.pushButton_4.clicked.connect(self.backward)
+        self.pushButton_5.clicked.connect(self.forward)
 
         self.pushButton.clicked.connect(self.test)
 
-        self.fig1 = Figure()                                   
+        self.fig1 = Figure()  
+        self.ax1 = self.fig1.add_subplot(111)                                  
         self.canvas1 = FigureCanvas(self.fig1)        
         self.verticalLayout.replaceWidget(self.widget_1, self.canvas1)
 
-        self.fig2 = Figure()                                   
+        self.fig2 = Figure()      
+        self.ax2 = self.fig2.add_subplot(111)                               
         self.canvas2 = FigureCanvas(self.fig2)        
         self.verticalLayout.replaceWidget(self.widget_2, self.canvas2)
 
        
         self.today=datetime.date.today() 
         self.past = self.today + datetime.timedelta(-30)
-        self.now = self.today + datetime.timedelta(-3)
+        self.now = self.today + datetime.timedelta(-2)
        
-
     def barcounter(self,bar,symbols, counter):
         pb = getattr(self,bar)
         pb.setMaximum(len(symbols))
@@ -119,20 +122,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ticklist=[]
        
         gain=float(self.lineEdit_2.text())
-      #  with open('pennystocks.json') as f:
-        with open('pennystock_test.json') as f:          
+        if self.checkBox.isChecked(): 
+            datafile='pennystock_test.json'
+        else:
+            datafile='pennystock.json'
+    
+        with open(datafile) as f:          
             symbols = json.load(f)  
             counter=1
         for x in symbols:         
             ticka = yf.Ticker(str(x))       
-            ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True)
-            #ref = ticka.history(period="5d", index_as_date = True)
-         
+            ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True)       
             ref.reset_index(inplace=True)   
             op_val=ref['Open']      
-            cl_val=ref['Close']           
-           
-            
+            cl_val=ref['Close']                      
             live_data = si.get_live_price(x)
           
             if np.mean(op_val)*gain<=live_data:
@@ -144,30 +147,31 @@ class MainWindow(QtWidgets.QMainWindow):
             QCoreApplication.processEvents()
             counter+=1
         self.Tot=len(self.ticklist)
-        self.Cols=1
-       # self.Rows=self.Tot//self.Cols
-        
-       # if self.Tot%self.Cols!=0:
-       #     self.Rows+=1
         self.label_4.setText('done')
         self.label_4.setStyleSheet("""QLineEdit { background-color: green; color: white }""")
-        self.past_plotter()
-        self.present_plotter()
-     
+        self.counter=0
+        self.past_plotter(self.counter)
+        self.present_plotter(self.counter)
+        
     def recorder(self):
         for key in self.hotlist:
             live_data = si.get_live_price(key)
             self.hotlist[key].append(live_data)
     
     def test(self):
-        ticka = yf.Ticker("AACQW") 
+        hist =  si.get_live_price("SNDL")
+        '''
+        ticka = yf.Ticker("NAKD") 
         hist = ticka.history(period="1d", interval="5m", index_as_date = True)
         hist.reset_index(inplace=True)
-        print(hist['Datetime'][0])
+        '''
+        print(hist)
+        '''
         t=hist['Datetime'][0]
         t= t.strftime("%H:%M:%S")
         #s= datetime.datetime.strptime(t, "%Y-%m-%d")
         print(t)
+        '''
       #  ticka = yf.Ticker("AACQW")      
       #  hist =get_data("AACQW", start_date="10/04/2019", end_date="12/04/2019", index_as_date = True)
       #  hist.reset_index(inplace=True)
@@ -179,55 +183,67 @@ class MainWindow(QtWidgets.QMainWindow):
             #hist = ticka.history(start_date=str(self.past), end_date=str(self.today)) 
        # print(hist)
     
-    def past_plotter(self):
-        self.fig1.clear()
-        k=1
-        for tick in self.ticklist:
-            ticka = yf.Ticker(str(tick))         
-            ref = ticka.history(period="1mo", index_as_date = True)
-            op_val=ref['Open']      
-            cl_val=ref['Close']
-            x=np.arange(-len(op_val),0,1)
-            ax = self.fig1.add_subplot(self.Tot,self.Cols,k)
-            ax.tick_params(axis='x',  which='both',   bottom=False,  labelbottom=False)           
-            ax.plot(x,op_val, label='open',c='b') 
-            ax.plot(x,cl_val, label='close',c='b' )
-            if k==self.Tot:
-                ax.tick_params(axis='x',  which='both',   bottom=False,  labelbottom=True)
-                ax.legend(loc='upper left', shadow=True)
-            ax.fill_between(x, op_val, cl_val, where=cl_val >= op_val, facecolor='green', interpolate=True)
-            ax.fill_between(x, op_val, cl_val, where=cl_val <= op_val, facecolor='red', interpolate=True)
-            ax.set_title( str(tick), loc='center')
-            ax.set_xticks(np.arange(-len(op_val),0,2))
-          #  ax.xaxis.set_major_locator(len(op_val))#(plt.MaxNLocator(len(op_val)/2))
-            k+=1
-            self.fig1.tight_layout()                                      
+    def past_plotter(self,counter):
+        self.ax1.clear()
+        
+        tick = self.ticklist[counter]
+        ticka = yf.Ticker(str(tick))         
+        ref = ticka.history(period="1mo", index_as_date = True)
+        op_val=ref['Open']      
+        cl_val=ref['Close']
+        x=np.arange(len(op_val)-1,-1,-1)
+     
+        self.ax1.set_xlim(len(op_val)-1,-1)      
+        self.ax1.plot(x,op_val, label='open',c='tab:purple') 
+        self.ax1.plot(x,cl_val, label='close',c='tab:brown' )
+        self.ax1.axvline(x=1)
+        self.ax1.tick_params(axis='x',  which='top',   bottom=True,  labelbottom=True)
+        self.ax1.legend(loc='upper left', shadow=True)
+        self.ax1.fill_between(x, op_val, cl_val, where=cl_val >= op_val, facecolor='green', interpolate=True)
+        self.ax1.fill_between(x, op_val, cl_val, where=cl_val <= op_val, facecolor='red', interpolate=True)
+        self.ax1.set_title( str(tick), loc='center')
+        self.ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+       
+        self.fig1.tight_layout()                                      
         self.canvas1.draw() 
        
-    def present_plotter(self):
-        self.fig2.clear()
-        k=1
-        for tick in self.ticklist:
-            ticka = yf.Ticker(str(tick)) 
-            hist = ticka.history(period="1d", interval="5m", index_as_date = True)
-            print(hist)
-            hist.reset_index(inplace=True)
-            hist['Datetime']= [s.strftime("%H:%M:%S") for s in hist['Datetime']]
-            ax2 = self.fig2.add_subplot(self.Tot,self.Cols,k)
-            ax2.tick_params(axis='x',  which='both',   bottom=False,  labelbottom=False)
-            if k==self.Tot:
-                ax2.tick_params(axis='x',  which='both',   bottom=False,  labelbottom=True)
-         
-            ax2.plot(hist['Datetime'],hist['Close'])
-          
-                
-            #ax2.plot(hist['Datetime'],hist['Close']) 
-            ax2.set_title(str(tick),  loc='center')
-            ax2.tick_params(labelrotation=90)
-            ax2.xaxis.set_major_locator(plt.MaxNLocator(5))
-            k+=1
-            self.fig2.tight_layout()                                      
+    def present_plotter(self,counter):
+        self.ax2.clear()
+      
+        tick = self.ticklist[counter]
+        ticka = yf.Ticker(str(tick)) 
+        hist = ticka.history(period="1d", interval="5m", index_as_date = True)      
+        hist.reset_index(inplace=True)
+        hist['Datetime']= [s.strftime("%H:%M:%S") for s in hist['Datetime']]
+        pres =  si.get_live_price(str(tick))
+        now = datetime.datetime.now()
+        actual = now.strftime("%H:%M:%S")
+            
+        self.ax2.tick_params(axis='x',  which='both',   bottom=True,  labelbottom=True)       
+        self.ax2.plot(hist['Datetime'],hist['Close'])
+        self.ax2.scatter(actual,pres, marker='o')
+        self.ax2.set_title(str(tick),  loc='center')
+        self.ax2.tick_params(labelrotation=45)
+        self.ax2.xaxis.set_major_locator(plt.MaxNLocator(7))
+        
+        self.fig2.tight_layout()                                      
         self.canvas2.draw() 
+
+    def forward(self):
+        if self.counter<self.Tot-1:
+            self.counter+=1
+        else:
+            self.counter=0
+        self.past_plotter(self.counter)
+        self.present_plotter(self.counter)
+        
+    def backward(self):
+        if self.counter==0:
+            self.counter=self.Tot-1
+        else:
+            self.counter-=1
+        self.past_plotter(self.counter)
+        self.present_plotter(self.counter)
 
 #%%     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 def main():
