@@ -14,6 +14,7 @@ import pandas as pd
 import yfinance as yf
 import ftplib
 import datetime
+import pytz
 
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
@@ -73,10 +74,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas2 = FigureCanvas(self.fig2)        
         self.verticalLayout.replaceWidget(self.widget_2, self.canvas2)
 
-       
+        from_day=int(self.lineEdit_3.text())
+        to_day=int(self.lineEdit_4.text())
         self.today=datetime.date.today() 
-        self.past = self.today + datetime.timedelta(-30)
-        self.now = self.today + datetime.timedelta(-2)
+        self.past = self.today + datetime.timedelta(from_day)
+        self.now = self.today + datetime.timedelta(to_day)
        
     def barcounter(self,bar,symbols, counter):
         pb = getattr(self,bar)
@@ -132,7 +134,7 @@ class MainWindow(QtWidgets.QMainWindow):
             counter=1
         for x in symbols:         
             ticka = yf.Ticker(str(x))       
-            ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True)       
+            ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True, prepost= True)       
             ref.reset_index(inplace=True)   
             op_val=ref['Open']      
             cl_val=ref['Close']                      
@@ -147,7 +149,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QCoreApplication.processEvents()
             counter+=1
         self.Tot=len(self.ticklist)
-        self.label_4.setText('done')
+       
         self.label_4.setStyleSheet("""QLineEdit { background-color: green; color: white }""")
         self.counter=0
         self.past_plotter(self.counter)
@@ -159,12 +161,12 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hotlist[key].append(live_data)
     
     def test(self):
-        hist =  si.get_live_price("SNDL")
-        '''
-        ticka = yf.Ticker("NAKD") 
-        hist = ticka.history(period="1d", interval="5m", index_as_date = True)
+        histl =  si.get_live_price("SNDL")
+        
+        ticka = yf.Ticker("SNDL") 
+        hist = ticka.history(period="1d", interval="1m", index_as_date = True, prepost= True)
         hist.reset_index(inplace=True)
-        '''
+        print(histl)
         print(hist)
         '''
         t=hist['Datetime'][0]
@@ -216,7 +218,8 @@ class MainWindow(QtWidgets.QMainWindow):
         hist.reset_index(inplace=True)
         hist['Datetime']= [s.strftime("%H:%M:%S") for s in hist['Datetime']]
         pres =  si.get_live_price(str(tick))
-        now = datetime.datetime.now()
+        #now = datetime.datetime.now()
+        now = datetime.datetime.now(pytz.timezone('US/Pacific'))
         actual = now.strftime("%H:%M:%S")
             
         self.ax2.tick_params(axis='x',  which='both',   bottom=True,  labelbottom=True)       
