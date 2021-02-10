@@ -61,7 +61,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pushButton_3.clicked.connect(self.analysis)
         self.pushButton_4.clicked.connect(self.backward)
         self.pushButton_5.clicked.connect(self.forward)
-
+        self.refreshbutton.clicked.connect(self.past_plotter)
+        
         self.pushButton.clicked.connect(self.test)
 
         self.fig1 = Figure()  
@@ -133,8 +134,11 @@ class MainWindow(QtWidgets.QMainWindow):
             symbols = json.load(f)  
             counter=1
         for x in symbols:         
-            ticka = yf.Ticker(str(x))       
-            ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True, prepost= True)       
+            ticka = yf.Ticker(str(x))  
+           # ref = ticka.history(period="5d", interval="5mo", index_as_date = True, prepost= True)     
+            ref = ticka.history(period="1mo", index_as_date = True, prepost= True)    
+           # ref = ticka.history(start=str(self.past), end=str(self.now), index_as_date = True, prepost= True)   
+            ref = ref[0:-2]    
             ref.reset_index(inplace=True)   
             op_val=ref['Open']      
             cl_val=ref['Close']                      
@@ -161,10 +165,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.hotlist[key].append(live_data)
     
     def test(self):
-        histl =  si.get_live_price("SNDL")
+        histl =  si.get_live_price("NAKD")
         
-        ticka = yf.Ticker("SNDL") 
-        hist = ticka.history(period="1d", interval="1m", index_as_date = True, prepost= True)
+        ticka = yf.Ticker("NAKD") 
+        hist = ticka.history(period="1mo", index_as_date = True, prepost= True)
+       # hist = ticka.history(start="2021-02-03", end="2021-02-09", index_as_date = True, prepost= True)   
         hist.reset_index(inplace=True)
         print(histl)
         print(hist)
@@ -185,12 +190,24 @@ class MainWindow(QtWidgets.QMainWindow):
             #hist = ticka.history(start_date=str(self.past), end_date=str(self.today)) 
        # print(hist)
     
+
+
     def past_plotter(self,counter):
         self.ax1.clear()
         
         tick = self.ticklist[counter]
-        ticka = yf.Ticker(str(tick))         
-        ref = ticka.history(period="1mo", index_as_date = True)
+        ticka = yf.Ticker(str(tick))      
+        if self.radioButton.isChecked():   
+            ref = ticka.history(period="1d", index_as_date = True)
+        if self.radioButton_2.isChecked():   
+            ref = ticka.history(period="5d", index_as_date = True)
+        if self.radioButton_3.isChecked():   
+            ref = ticka.history(period="1mo", index_as_date = True)
+        if self.radioButton_4.isChecked():   
+            ref = ticka.history(period="1y", index_as_date = True)
+        if self.radioButton_5.isChecked():   
+            ref = ticka.history(period="max", index_as_date = True)
+        
         op_val=ref['Open']      
         cl_val=ref['Close']
         x=np.arange(len(op_val)-1,-1,-1)
@@ -208,7 +225,7 @@ class MainWindow(QtWidgets.QMainWindow):
        
         self.fig1.tight_layout()                                      
         self.canvas1.draw() 
-       
+         
     def present_plotter(self,counter):
         self.ax2.clear()
       
